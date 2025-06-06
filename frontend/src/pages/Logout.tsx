@@ -2,52 +2,51 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LogOut } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import Header from '@/components/Header';
 import { toast } from 'sonner';
 
-const LogoutPrompt = () => {
-  const [secretKey, setSecretKey] = useState('');
+const Login = () => {
+  const [secretCode, setSecretCode] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogout = async (e: React.FormEvent) => {
+  // ✅ API call to backend
+  const loginAdminWithSecretKey = async (secretKey: string) => {
+    const response = await fetch('http://localhost:5000/api/secret/admin/logout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ secretKey })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Logout failed');
+    }
+
+    return await response.json();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!secretKey.trim()) {
+    if (!secretCode.trim()) {
       setError('Secret key is required');
       return;
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/secret/admin/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ secretKey }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Logout failed');
-      }
-
-      // Success
-      localStorage.removeItem('token');
+      const data = await loginAdminWithSecretKey(secretCode);
+      localStorage.setItem('token', data.token); // Store token
       toast.success('Logout successful!');
-      navigate('/login');
+      navigate('/LogoutPrompt'); // ✅ Redirect to home page
     } catch (err: any) {
-      const message = err.message || 'Logout failed. Please try again.';
+      const message = err.message || 'Login failed. Please try again.';
       setError(message);
       toast.error(message);
     }
@@ -61,7 +60,7 @@ const LogoutPrompt = () => {
           <CardHeader className="bg-gradient-to-r from-athgreen to-athgreen/70 text-white text-center py-6">
             <CardTitle className="text-2xl font-bold">Admin Logout</CardTitle>
           </CardHeader>
-          <form onSubmit={handleLogout}>
+          <form onSubmit={handleSubmit}>
             <CardContent className="pt-6 pb-2 space-y-4">
               {error && (
                 <Alert variant="destructive" className="mb-4">
@@ -69,15 +68,16 @@ const LogoutPrompt = () => {
                 </Alert>
               )}
               <div className="space-y-2">
-                <label htmlFor="secretKey" className="text-sm font-medium">
-                  Confirm Secret Key
+                <label htmlFor="secretCode" className="text-sm font-medium">
+                  Secret Key
                 </label>
                 <Input
-                  id="secretKey"
+                  id="secretCode"
                   type="password"
                   placeholder="Enter your secret key"
-                  value={secretKey}
-                  onChange={(e) => setSecretKey(e.target.value)}
+                  value={secretCode}
+                  onChange={(e) => setSecretCode(e.target.value)}
+                  className="w-full"
                   required
                 />
               </div>
@@ -86,10 +86,10 @@ const LogoutPrompt = () => {
               <Button
                 type="submit"
                 className="w-full bg-athgreen hover:bg-athgreen/90 text-white"
-                disabled={!secretKey.trim()}
+                disabled={!secretCode.trim()}
               >
-                <LogOut className="w-4 h-4 mr-2" />
-                Confirm Logout
+                <LogIn className="w-4 h-4 mr-2" />
+                Logout
               </Button>
             </CardFooter>
           </form>
@@ -115,4 +115,4 @@ const LogoutPrompt = () => {
   );
 };
 
-export default LogoutPrompt;
+export default Login;

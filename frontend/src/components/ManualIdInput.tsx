@@ -1,91 +1,88 @@
-
 import React, { useState } from "react";
-import { toast } from "sonner";
-import { findMemberById } from "@/services/memberService";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { IdCard, ArrowRightCircle } from "lucide-react";
+import { toast } from "react-hot-toast";
 
-interface ManualIdInputProps {
-  onMemberFound: (memberData: any, isCheckin: boolean) => void;
-  checkedInMembers: Record<string, boolean>;
+interface ManualIdProps {
+  onSuccessCheckIn: (member: {
+    fullName: string;
+    membershipID: string;
+    date: string;
+    loginTime: string;
+  }) => void;
 }
 
-const ManualIdInput: React.FC<ManualIdInputProps> = ({ 
-  onMemberFound, 
-  checkedInMembers 
-}) => {
-  const [memberId, setMemberId] = useState("");
+const ManualId: React.FC<ManualIdProps> = ({ onSuccessCheckIn }) => {
+  const [memberIdInput, setMemberIdInput] = useState("");
+  const [checking, setChecking] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!memberId.trim()) {
-      toast.error("Please enter a Member ID");
+
+    const trimmedId = memberIdInput.trim();
+
+    if (!trimmedId) {
+      toast.error("Please enter a member ID");
       return;
     }
 
-    const member = findMemberById(memberId.trim());
-    
-    if (member) {
-      if (member.status === "active") {
-        // Check if member is already checked in
-        const isCheckedIn = checkedInMembers[member.id] === true;
-        
-        if (isCheckedIn) {
-          toast.success(`${member.name} checked out successfully`);
-          onMemberFound(member, false); // false means check-out
-        } else {
-          toast.success(`${member.name} checked in successfully`);
-          onMemberFound(member, true); // true means check-in
-        }
-      } else {
-        toast.error(`Membership inactive: ${member.name}`);
-      }
-    } else {
-      toast.error("Member ID not found");
-    }
+    setChecking(true);
 
-    // Clear input field after submission
-    setMemberId("");
+    try {
+      const response = await fetch(`http://localhost:5000/api/attendance/checkin/${trimmedId}`, {
+        method: "POST",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.member) {
+        toast.error(result.message || "Member not found or check-in failed!");
+        return;
+      }
+
+      toast.success(`✅ ${result.member.fullName} (${result.member.membershipID}) successfully checked in!`);
+
+      // Notify parent component about the new check-in
+      onSuccessCheckIn({
+        fullName: result.member.fullName,
+        membershipID: result.member.membershipID,
+        date: result.date, // ensure backend sends these or parse from timestamp
+        loginTime: result.loginTime,
+      });
+
+      setMemberIdInput("");
+    } catch (err) {
+      console.error("Error during check-in:", err);
+      toast.error("Something went wrong during check-in.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
-    <Card className="w-full max-w-md bg-white shadow-lg border border-athgray/20">
-      <CardHeader className="bg-gradient-to-r from-athgreen/5 to-athgreen/10 pb-3">
-        <CardTitle className="flex items-center gap-2 text-athgreen text-lg">
-          <IdCard className="h-5 w-5" />
-          <span>Manual Member ID Entry</span>
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent className="pt-4 relative">
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Input
-              type="text"
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-              placeholder="Enter Member ID (e.g. A12345)"
-              className="flex-1 border-athgray/30 focus-visible:ring-athgreen/40"
-              autoComplete="off"
-            />
-            <Button 
-              type="submit"
-              className="bg-athgreen hover:bg-athgreen/90 text-white"
-            >
-              <ArrowRightCircle className="w-4 h-4 mr-1" />
-              Submit
-            </Button>
-          </div>
-          <p className="text-xs text-athgray/80 mt-1">
-            Enter a member ID to check in or check out
-          </p>
-        </form>
-      </CardContent>
-    </Card>
+    <form onSubmit={handleCheckIn} className="flex gap-2 items-center mb-6">
+      <label htmlFor="memberId" className="sr-only">
+        Member ID
+      </label>
+      <input
+        id="memberId"
+        type="text"
+        placeholder="Enter Member ID"
+        value={memberIdInput}
+        onChange={(e) => setMemberIdInput(e.target.value)}
+        disabled={checking}
+        className="border px-4 py-2 rounded flex-grow"
+        autoComplete="off"
+        aria-required="true"
+        aria-disabled={checking}
+      />
+      <button
+        type="submit"
+        disabled={checking}
+        className="bg-green-500 text-white px-6 py-2 rounded disabled:opacity-50"
+      >
+        {checking ? "Checking..." : "Submit"}
+      </button>
+    </form>
   );
 };
 
-export default ManualIdInput;
+export default ManualId;

@@ -1,31 +1,28 @@
-
-import React from 'react';
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
+import React, { useEffect, useState } from 'react';
+import {
+  Table, TableHeader, TableBody, TableHead, TableRow, TableCell
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Calendar, User } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Mock data for check-in/check-out history
-export const mockHistory = [
-  { id: 1, memberId: "A12345", memberName: "John Smith", type: "check-in", timestamp: "2025-05-12T08:15:23" },
-  { id: 2, memberId: "B67890", memberName: "Sarah Johnson", type: "check-in", timestamp: "2025-05-12T09:30:45" },
-  { id: 3, memberId: "A12345", memberName: "John Smith", type: "check-out", timestamp: "2025-05-12T10:45:12" },
-  { id: 4, memberId: "C13579", memberName: "Michael Brown", type: "check-in", timestamp: "2025-05-12T11:05:38" },
-  { id: 5, memberId: "B67890", memberName: "Sarah Johnson", type: "check-out", timestamp: "2025-05-12T12:15:27" },
-  { id: 6, memberId: "D24680", memberName: "Emily Davis", type: "check-in", timestamp: "2025-05-12T13:22:56" },
-  { id: 7, memberId: "C13579", memberName: "Michael Brown", type: "check-out", timestamp: "2025-05-12T14:10:33" },
-  { id: 8, memberId: "E97531", memberName: "Alex Wilson", type: "check-in", timestamp: "2025-05-12T15:05:19" },
-];
-
-interface CheckInHistoryProps {
-  history?: typeof mockHistory;
+// Define the type of each entry from backend
+interface HistoryEntry {
+  id: number;
+  memberId: string;
+  memberName: string;
+  type: 'check-in' | 'check-out';
+  timestamp: string;
 }
 
-const CheckInHistory: React.FC<CheckInHistoryProps> = ({ history = mockHistory }) => {
+const CheckInHistory: React.FC = () => {
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
       day: 'numeric',
       year: 'numeric'
     });
@@ -33,11 +30,55 @@ const CheckInHistory: React.FC<CheckInHistoryProps> = ({ history = mockHistory }
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
       minute: '2-digit'
     });
   };
+useEffect(() => {
+  const fetchHistory = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/attendance/all');
+      const result = await response.json();
+
+      const transformed: HistoryEntry[] = [];
+
+      result.attendance.forEach((record: any, index: number) => {
+        // Push check-in
+        transformed.push({
+          id: index * 2,
+          memberId: record.membershipID,
+          memberName: record.fullName,
+          type: 'check-in',
+          timestamp: `${record.date}T${record.loginTime}`
+        });
+
+        // Push check-out (if exists)
+        if (record.logoutTime) {
+          transformed.push({
+            id: index * 2 + 1,
+            memberId: record.membershipID,
+            memberName: record.fullName,
+            type: 'check-out',
+            timestamp: `${record.date}T${record.logoutTime}`
+          });
+        }
+      });
+
+      // Optional: sort by latest first
+      transformed.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      setHistory(transformed);
+    } catch (error) {
+      console.error('Error fetching check-in history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchHistory();
+}, []);
+
 
   return (
     <div className="w-full max-w-4xl mx-auto mt-8 animate-in fade-in duration-500">
@@ -48,7 +89,7 @@ const CheckInHistory: React.FC<CheckInHistoryProps> = ({ history = mockHistory }
           Today's Activity
         </Badge>
       </div>
-      
+
       <div className="bg-white rounded-lg border shadow-md overflow-hidden">
         <ScrollArea className="h-[320px]">
           <Table>
@@ -56,12 +97,25 @@ const CheckInHistory: React.FC<CheckInHistoryProps> = ({ history = mockHistory }
               <TableRow>
                 <TableHead className="w-[180px]">Member</TableHead>
                 <TableHead>Activity</TableHead>
-                <TableHead className="text-right"><Calendar className="inline mr-1 h-4 w-4" />Date</TableHead>
-                <TableHead className="text-right"><Clock className="inline mr-1 h-4 w-4" />Time</TableHead>
+                <TableHead className="text-right">
+                  <Calendar className="inline mr-1 h-4 w-4" />
+                  Date
+                </TableHead>
+                <TableHead className="text-right">
+                  <Clock className="inline mr-1 h-4 w-4" />
+                  Time
+                </TableHead>
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {history.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    Loading...
+                  </TableCell>
+                </TableRow>
+              ) : history.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     No activity recorded today
@@ -82,7 +136,7 @@ const CheckInHistory: React.FC<CheckInHistoryProps> = ({ history = mockHistory }
                       </div>
                     </TableCell>
                     <TableCell>
-                      {entry.type === "check-in" ? (
+                      {entry.type === 'check-in' ? (
                         <Badge className="bg-athgreen text-white hover:bg-athgreen/90">Check In</Badge>
                       ) : (
                         <Badge className="bg-athred text-white hover:bg-athred/90">Check Out</Badge>

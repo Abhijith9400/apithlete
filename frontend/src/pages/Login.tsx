@@ -7,17 +7,30 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LogIn } from 'lucide-react';
 import Header from '@/components/Header';
 import { toast } from 'sonner';
-import axios from 'axios';
+import { useAuth } from '@/hooks/useAuth'; // Import your auth hook
 
 const Login = () => {
   const [secretCode, setSecretCode] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { login } = useAuth(); // Get login function from context
 
-  // ✅ POST login using backend's expected route
+  // API call to backend
   const loginAdminWithSecretKey = async (secretKey: string) => {
-    const response = await axios.post('/api/admin/login', { secretKey });
-    return response.data;
+    const response = await fetch('http://localhost:5000/api/secret/admin/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ secretKey }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Login failed');
+    }
+
+    return await response.json();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,10 +45,11 @@ const Login = () => {
     try {
       const data = await loginAdminWithSecretKey(secretCode);
       localStorage.setItem('token', data.token); // Store token
+      login(); // Update auth context state
       toast.success('Login successful!');
-      navigate('/dashboard'); // Redirect to dashboard
+      navigate('/', { replace: true }); // Redirect to home page
     } catch (err: any) {
-      const message = err.response?.data?.error || 'Login failed. Please try again.';
+      const message = err.message || 'Login failed. Please try again.';
       setError(message);
       toast.error(message);
     }
